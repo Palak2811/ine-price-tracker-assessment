@@ -1,7 +1,3 @@
-/**
- * Business logic for tracking products, and for assembling the dashboard view.
- */
-
 import {
   listTrackedProducts, getTrackedProduct, getTrackedByProductId,
   createTrackedProduct, updateTrackedProduct, deleteTrackedProduct,
@@ -11,13 +7,6 @@ import { getProductById } from '../repositories/productRepository.js';
 import { buildProductUrl } from '../scraper/constants.js';
 import { ApiError } from '../utils/ApiError.js';
 
-/**
- * Start tracking a product.
- *
- * The caller supplies only a product id -- never a URL. The URL is derived from
- * the id via buildProductUrl(), so a client can never steer the scraper at an
- * arbitrary site.
- */
 export async function trackProduct(productId, { scrapeIntervalMinutes = 120 } = {}) {
   const product = await getProductById(productId);
   if (!product) {
@@ -29,8 +18,6 @@ export async function trackProduct(productId, { scrapeIntervalMinutes = 120 } = 
     if (existing.is_active) {
       throw new ApiError(409, 'already_tracked', `${product.name} is already being tracked`);
     }
-    // Re-activate rather than creating a duplicate, so the product keeps its
-    // existing price history.
     return updateTrackedProduct(existing.id, {
       is_active: true,
       scrape_interval_minutes: scrapeIntervalMinutes,
@@ -56,7 +43,6 @@ export async function untrackProduct(id, { hardDelete = false } = {}) {
     return { deleted: true };
   }
 
-  // Soft-delete by default: history and logs stay intact.
   await updateTrackedProduct(id, { is_active: false });
   return { deleted: false, deactivated: true };
 }
@@ -67,7 +53,6 @@ export async function setScrapeInterval(id, minutes) {
   return updateTrackedProduct(id, { scrape_interval_minutes: minutes });
 }
 
-/** Dashboard list: one row per tracked product with its current state. */
 export async function getDashboard() {
   const tracked = await listTrackedProducts();
 
@@ -78,7 +63,6 @@ export async function getDashboard() {
     url: t.product_url,
     isActive: t.is_active,
     scrapeIntervalMinutes: t.scrape_interval_minutes,
-    // Last known GOOD values. These survive a failed scrape by design.
     lastPrice: t.last_price === null ? null : Number(t.last_price),
     currency: t.last_currency ?? 'INR',
     inStock: t.last_in_stock,
@@ -88,13 +72,11 @@ export async function getDashboard() {
     latestStatus: t.last_status,
     lastError: t.last_error,
     consecutiveFailures: t.consecutive_failures,
-    // True when the most recent attempt failed but we still hold a good price.
     showingStalePrice: t.last_status === 'failed' && t.last_price !== null,
     createdAt: t.created_at,
   }));
 }
 
-/** Detail view: product + history + logs in one round trip. */
 export async function getTrackedProductDetail(id, { historyLimit = 500, logLimit = 100 } = {}) {
   const tracked = await getTrackedProduct(id);
   if (!tracked) throw new ApiError(404, 'not_found', 'Tracked product not found');
@@ -144,6 +126,7 @@ export async function getTrackedProductDetail(id, { historyLimit = 500, logLimit
       price: l.scraped_price === null ? null : Number(l.scraped_price),
       inStock: l.scraped_in_stock,
       structureWarning: l.structure_warning,
+      trigger: l.scrape_runs?.trigger ?? null,
       startedAt: l.started_at,
       completedAt: l.completed_at,
     })),
@@ -151,7 +134,6 @@ export async function getTrackedProductDetail(id, { historyLimit = 500, logLimit
   };
 }
 
-/** Simple reliability stats so the UI can show an honest success rate. */
 function summariseLogs(logs) {
   const total = logs.length;
   const success = logs.filter((l) => l.status === 'success').length;

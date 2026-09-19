@@ -1,5 +1,3 @@
-/** Small hand-rolled validators. Every route validates its input. */
-
 import { ApiError } from '../utils/ApiError.js';
 
 export function requireSearchQuery(req) {
@@ -18,7 +16,6 @@ export function parseLimit(raw, { fallback = 20, max = 100 } = {}) {
   return Math.min(n, max);
 }
 
-/** Product ids are the store's own positive integers. */
 export function parseProductId(raw) {
   const n = Number.parseInt(raw, 10);
   if (!Number.isInteger(n) || n <= 0) {

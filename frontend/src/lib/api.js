@@ -1,13 +1,5 @@
-/**
- * Thin API client.
- *
- * The base URL is injected at build time via VITE_API_BASE_URL so the same
- * bundle can point at localhost or the Render service without a code change.
- */
-
 const BASE = (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 
-/** Error carrying the API's machine-readable code, so the UI can react to it. */
 export class ApiClientError extends Error {
   constructor(message, { code, status } = {}) {
     super(message);
@@ -24,7 +16,6 @@ async function request(path, options = {}) {
       ...options,
     });
   } catch {
-    // A network-level failure (backend asleep, DNS, offline) has no response.
     throw new ApiClientError(
       'Could not reach the API. If the backend is on a free tier it may be waking up — try again in a moment.',
       { code: 'network_error' }
@@ -69,5 +60,5 @@ export const api = {
 
   scrapeNow: (id) => request(`/api/tracked-products/${id}/scrape`, { method: 'POST' }),
 
-  health: () => request('/health'),
+  health: () => request(`/health`),
 };

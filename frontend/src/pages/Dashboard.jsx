@@ -3,127 +3,190 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { formatPrice, formatRelative } from '../lib/format.js';
 import StatusBadge, { StockBadge } from '../components/StatusBadge.jsx';
-import { Loading, ErrorState, Empty } from '../components/States.jsx';
+import { Loading, ErrorState } from '../components/States.jsx';
 
-export default function Dashboard() {
+export default function Dashboard({ onChange }) {
   const [state, setState] = useState({ status: 'loading', items: [], error: null });
-  const [scraping, setScraping] = useState({});
+  const [busy, setBusy] = useState({});
+  const [filter, setFilter] = useState('all'); 
 
-  const load = useCallback(async () => {
-    setState((s) => ({ ...s, status: 'loading' }));
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setState((s) => ({ ...s, status: s.items.length ? 'ready' : 'loading' }));
     try {
       const data = await api.listTracked();
       setState({ status: 'ready', items: data.items, error: null });
     } catch (error) {
-      setState({ status: 'error', items: [], error });
+      setState((s) => ({ status: s.items.length ? 'ready' : 'error', items: s.items, error }));
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   async function scrapeNow(id) {
-    setScraping((s) => ({ ...s, [id]: true }));
+    setBusy((b) => ({ ...b, [id]: true }));
     try {
       await api.scrapeNow(id);
-      await load();
+      await load({ quiet: true });
+      onChange?.();
     } catch (error) {
-      window.alert(`Scrape failed: ${error.message}`);
+      setState((s) => ({ ...s, error }));
     } finally {
-      setScraping((s) => ({ ...s, [id]: false }));
+      setBusy((b) => ({ ...b, [id]: false }));
     }
   }
 
-  if (state.status === 'loading') {
+  if (state.status === 'loading') return <Loading label="Loading tracked products…" />;
+  if (state.status === 'error') return <ErrorState error={state.error} onRetry={load} />;
+
+  const { items } = state;
+
+  if (!items.length) {
     return (
-      <>
-        <h1 className="page-title">Dashboard</h1>
-        <Loading rows={3} label="Loading tracked products…" />
-      </>
+      <div className="panel">
+        <div className="empty">
+          <h3>Nothing tracked yet</h3>
+          <p>Pick a product from the INE mock store to start recording its price and stock.</p>
+          <Link className="btn btn-primary" to="/products">Find a product</Link>
+        </div>
+      </div>
     );
   }
 
-  if (state.status === 'error') {
-    return (
-      <>
-        <h1 className="page-title">Dashboard</h1>
-        <ErrorState error={state.error} onRetry={load} />
-      </>
-    );
-  }
-
-  if (!state.items.length) {
-    return (
-      <>
-        <h1 className="page-title">Dashboard</h1>
-        <Empty title="No products tracked yet">
-          <p>Search the INE mock store and pick a product to start tracking its price and stock.</p>
-          <Link className="btn btn-primary" to="/add">Add a product</Link>
-        </Empty>
-      </>
-    );
-  }
-
-  const failing = state.items.filter((p) => p.latestStatus === 'failed');
+  const failing = items.filter((p) => p.latestStatus === 'failed');
+  const withPrice = items.filter((p) => p.lastPrice !== null);
+  const outOfStock = items.filter((p) => p.inStock === false);
+  const rows = filter === 'failing' ? failing : items;
 
   return (
     <>
-      <h1 className="page-title">Dashboard</h1>
-      <p className="page-sub">
-        {state.items.length} product{state.items.length === 1 ? '' : 's'} tracked · scraped automatically every 2 hours
-      </p>
+      <div className="stat-row">
+        <div className="stat">
+          <div className="k">Tracked</div>
+          <div className="v">{items.length}</div>
+        </div>
+        <div className="stat">
+          <div className="k">With a price</div>
+          <div className="v">{withPrice.length}<small>of {items.length}</small></div>
+        </div>
+        <div className="stat">
+          <div className="k">Out of stock</div>
+          <div className="v">{outOfStock.length}</div>
+        </div>
+        <div className="stat">
+          <div className="k">Last scrape failed</div>
+          <div className={`v${failing.length ? ' is-fail' : ''}`}>{failing.length}</div>
+        </div>
+      </div>
 
-      {failing.length > 0 && (
-        <div className="alert alert-warn" style={{ marginBottom: 16 }} role="status">
-          <span aria-hidden="true">⚠</span>
-          <div>
-            <strong>
-              {failing.length} product{failing.length === 1 ? '' : 's'} failed the latest scrape.
-            </strong>{' '}
-            The last known good price is still shown below and is clearly marked as stale.
-          </div>
+      {state.error && (
+        <div className="note note-fail" style={{ marginBottom: 14 }} role="alert">
+          <span className="mark" aria-hidden="true">!</span>
+          <div>{state.error.message}</div>
         </div>
       )}
 
-      <div className="grid grid-cards">
-        {state.items.map((p) => (
-          <article className="card product-card" key={p.id}>
-            <div className="body">
-              <Link to={`/product/${p.id}`} className="name">{p.name}</Link>
-              <div className="meta">#{p.productId} · every {p.scrapeIntervalMinutes}min</div>
-
-              <div className="price-row">
-                {p.lastPrice !== null
-                  ? <span className="price-big">{formatPrice(p.lastPrice, p.currency)}</span>
-                  : <span className="price-none">No price yet</span>}
-                <StockBadge inStock={p.inStock} qty={p.stockQty} />
-              </div>
-
-              {/* A failed scrape never overwrites the price, so say so plainly. */}
-              {p.showingStalePrice && (
-                <div className="alert alert-warn" style={{ marginTop: 12, fontSize: '.8rem' }}>
-                  <span aria-hidden="true">⚠</span>
-                  <div>
-                    <strong>Latest scrape failed.</strong>{' '}
-                    Showing last good price from {formatRelative(p.lastSuccessAt)}.
-                    {p.lastError && (
-                      <div className="muted" style={{ marginTop: 3 }}>{p.lastError.slice(0, 120)}</div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="foot">
-              <StatusBadge status={p.latestStatus} />
-              <span>last ok {formatRelative(p.lastSuccessAt)}</span>
-              <span className="spacer" />
-              <button className="btn btn-sm" disabled={scraping[p.id]} onClick={() => scrapeNow(p.id)}>
-                {scraping[p.id] ? 'Scraping…' : 'Scrape now'}
-              </button>
-            </div>
-          </article>
-        ))}
+      <div className="toolbar">
+        <div className="seg">
+          <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+            All {items.length}
+          </button>
+          <button type="button" aria-pressed={filter === 'failing'} onClick={() => setFilter('failing')}>
+            Failing {failing.length}
+          </button>
+        </div>
+        <span className="grow" />
+        <button className="btn btn-quiet btn-xs" onClick={() => load()}>Refresh</button>
+        <Link className="btn btn-primary btn-xs" to="/products">Add product</Link>
       </div>
+
+      <div className="panel">
+        <div className="table-scroll">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th className="num">Price</th>
+                <th>Stock</th>
+                <th>Last scrape</th>
+                <th className="opt">Last success</th>
+                <th className="opt num">Every</th>
+                <th className="num" aria-label="Actions" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id} className={p.latestStatus === 'failed' ? 'row-failed' : undefined}>
+                  <td>
+                    <div className="cell-primary">
+                      <Link to={`/product/${p.id}`}>{p.name}</Link>
+                    </div>
+                    <div className="cell-sub">#{p.productId}</div>
+                  </td>
+
+                  <td className="num">
+                    {p.lastPrice !== null ? (
+                      <>
+                        <div className={`price${p.showingStalePrice ? ' price-stale' : ''}`}>
+                          {formatPrice(p.lastPrice, p.currency)}
+                        </div>
+                        
+                        {p.showingStalePrice && <div className="cell-sub">last known</div>}
+                      </>
+                    ) : (
+                      <span className="price-none">—</span>
+                    )}
+                  </td>
+
+                  <td><StockBadge inStock={p.inStock} qty={p.stockQty} /></td>
+
+                  <td>
+                    <StatusBadge status={p.latestStatus} />
+                    <div className="cell-sub">{formatRelative(p.lastAttemptAt)}</div>
+                  </td>
+
+                  <td className="opt nowrap">
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {formatRelative(p.lastSuccessAt)}
+                    </span>
+                    {p.consecutiveFailures > 0 && (
+                      <div className="cell-sub" style={{ color: 'var(--fail)' }}>
+                        {p.consecutiveFailures} failed in a row
+                      </div>
+                    )}
+                  </td>
+
+                  <td className="opt num nowrap" style={{ color: 'var(--text-muted)' }}>
+                    {p.scrapeIntervalMinutes >= 60
+                      ? `${p.scrapeIntervalMinutes / 60}h`
+                      : `${p.scrapeIntervalMinutes}m`}
+                  </td>
+
+                  <td className="num nowrap">
+                    <button
+                      className="btn btn-xs"
+                      disabled={busy[p.id]}
+                      onClick={() => scrapeNow(p.id)}
+                    >
+                      {busy[p.id] ? 'Scraping…' : 'Scrape'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {rows.length === 0 && (
+          <div className="empty" style={{ padding: '28px 20px' }}>
+            <p style={{ margin: 0 }}>No products are currently failing.</p>
+          </div>
+        )}
+      </div>
+
+      <p style={{ color: 'var(--text-muted)', fontSize: 12.5, marginTop: 10 }}>
+        A scrape runs roughly every 2 hours per product, triggered by an external cron service.
+        Manual scrapes reset that product&rsquo;s timer.
+      </p>
     </>
   );
 }

@@ -1,5 +1,3 @@
-/** Tracked products, history, logs and manual scrape. */
-
 import {
   trackProduct, untrackProduct, getDashboard,
   getTrackedProductDetail, setScrapeInterval,
@@ -18,8 +16,6 @@ export async function create(req, res) {
   if (body.productId === undefined) {
     throw ApiError.badRequest('missing_product_id', 'Body must include productId');
   }
-  // Only an id is accepted. A client-supplied URL is never trusted, which is
-  // what keeps the scraper pinned to the mock store.
   const productId = parseProductId(body.productId);
   const interval = parseInterval(body.scrapeIntervalMinutes);
   const tracked = await trackProduct(productId, { scrapeIntervalMinutes: interval });
@@ -79,12 +75,12 @@ export async function logs(req, res) {
       httpStatus: l.http_status, durationMs: l.duration_ms,
       price: l.scraped_price === null ? null : Number(l.scraped_price),
       inStock: l.scraped_in_stock, structureWarning: l.structure_warning,
+      trigger: l.scrape_runs?.trigger ?? null,
       startedAt: l.started_at, completedAt: l.completed_at,
     })),
   });
 }
 
-/** Manual scrape. Rate-limited in the route to stop it being abused. */
 export async function scrapeNow(req, res) {
   const id = parseUuid(req.params.id);
   const result = await scrapeSingleProduct(id);

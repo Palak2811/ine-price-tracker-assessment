@@ -1,5 +1,3 @@
-/** Catalogue search + browse. */
-
 import { searchProducts, getProductById, countProducts } from '../repositories/productRepository.js';
 import { requireSearchQuery, parseLimit, parseProductId } from '../middleware/validate.js';
 import { ApiError } from '../utils/ApiError.js';

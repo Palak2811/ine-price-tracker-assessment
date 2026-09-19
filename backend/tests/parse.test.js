@@ -1,10 +1,3 @@
-/**
- * Unit tests for price/stock parsing and validation.
- *
- * The fixtures here are real strings captured from the live mock store,
- * including the zero-width padding it injects between digits.
- */
-
 import { describe, it, expect } from 'vitest';
 import {
   stripZeroWidth, parsePrice, parseCurrency, parseStock, parseBadgePercent,
@@ -35,9 +28,6 @@ describe('parsePrice', () => {
   });
 
   it('parses the "Rs." format the store also uses', () => {
-    // Regression: the full stop in "Rs." used to survive the digit filter and
-    // produce ".12723.00", which was rejected as malformed. A real scrape of
-    // product 40 failed on exactly this string.
     expect(parsePrice('Rs. 12,723.00')).toBe(12723);
     expect(parsePrice('Rs 900')).toBe(900);
     expect(parsePrice('INR 1,234.50')).toBe(1234.5);
@@ -52,8 +42,6 @@ describe('parsePrice', () => {
   });
 
   it('returns null rather than 0 for unusable input', () => {
-    // This is the important one: a null must propagate as a scrape failure,
-    // never be coerced into a zero price that would pollute the history.
     expect(parsePrice('')).toBeNull();
     expect(parsePrice(null)).toBeNull();
     expect(parsePrice('Price hidden')).toBeNull();
@@ -75,7 +63,6 @@ describe('parseCurrency', () => {
 });
 
 describe('parseStock', () => {
-  // All five phrasings the store rotates between.
   it.each([
     ['In stock · 190 left', 190],
     ['Only 96 left', 96],
@@ -95,8 +82,6 @@ describe('parseStock', () => {
   });
 
   it('does NOT treat a missing element as out of stock', () => {
-    // This distinction is the whole point: absence means "we failed to read it",
-    // which must be a scrape failure, not a confident "out of stock" record.
     expect(parseStock(null, null)).toBeNull();
     expect(parseStock('', '')).toBeNull();
   });
@@ -161,8 +146,6 @@ describe('checkPriceConsistency', () => {
   });
 
   it('does not fire on a non-integer implied discount', () => {
-    // Measured on the live store: implied discount is often not a round number,
-    // and warning about it produced false positives on most healthy scrapes.
     expect(checkPriceConsistency({ price: 13113, mrp: 26879 })).toBeNull();
   });
 

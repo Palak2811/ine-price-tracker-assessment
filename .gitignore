@@ -44,6 +44,16 @@ tmp/
 coverage/
 .nyc_output/
 
+# Local tooling / editor config
+.claude/
+
+# Database
+database/
+
+# Markdown, except the README
+*.md
+!README.md
+
 # Vercel / Render
 .vercel
 .render

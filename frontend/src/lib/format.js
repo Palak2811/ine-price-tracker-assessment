@@ -1,5 +1,3 @@
-/** Shared formatting helpers. */
-
 export const formatPrice = (value, currency = 'INR') => {
   if (value === null || value === undefined) return '—';
   return new Intl.NumberFormat('en-IN', {
@@ -7,7 +5,6 @@ export const formatPrice = (value, currency = 'INR') => {
   }).format(value);
 };
 
-/** Compact price for chart axes, e.g. ₹1.3L. */
 export const formatPriceShort = (value) => {
   if (value === null || value === undefined) return '';
   if (value >= 10_000_000) return `₹${(value / 10_000_000).toFixed(1)}Cr`;

@@ -1,10 +1,3 @@
-/**
- * An error with an HTTP status and a stable machine-readable code.
- *
- * Anything thrown that is NOT an ApiError is treated by the error handler as an
- * unexpected internal fault: it is logged in full but reported to the client as
- * a generic 500, so stack traces and database details never leak.
- */
 export class ApiError extends Error {
   constructor(status, code, message, details = null) {
     super(message);

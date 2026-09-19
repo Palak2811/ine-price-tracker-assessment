@@ -1,11 +1,3 @@
-/**
- * Dev harness: run the real scraper against N products with no database.
- * Used to measure reliability before wiring persistence.
- *
- *   node scripts/probe-scraper.js 325 174 2 42 500
- *   node scripts/probe-scraper.js --headed 325
- */
-
 import { getSharedBrowser, closeSharedBrowser } from '../src/scraper/browser.js';
 import { scrapeProductWithRetry } from '../src/scraper/scrapeProduct.js';
 import { logger } from '../src/utils/logger.js';

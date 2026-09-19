@@ -1,11 +1,3 @@
-/**
- * Minimal structured logger.
- *
- * Deliberately dependency-free: it emits one JSON object per line, which is
- * what Render's log viewer wants, and it redacts anything that looks like a
- * secret so a stray log line can never leak the service-role key or cron secret.
- */
-
 const LEVELS = { debug: 10, info: 20, warn: 30, error: 40, silent: 99 };
 
 const configuredLevel = () => {
@@ -35,7 +27,6 @@ function redact(value, depth = 0) {
 function emit(level, context, message) {
   if (LEVELS[level] < configuredLevel()) return;
 
-  // Callers may pass (message) or (context, message).
   if (typeof context === 'string' && message === undefined) {
     message = context;
     context = {};
@@ -57,7 +48,6 @@ export const logger = {
   info: (ctx, msg) => emit('info', ctx, msg),
   warn: (ctx, msg) => emit('warn', ctx, msg),
   error: (ctx, msg) => emit('error', ctx, msg),
-  /** Child logger that merges fixed fields into every line. */
   child(fixed) {
     const wrap = (level) => (ctx, msg) => {
       if (typeof ctx === 'string') return emit(level, fixed, ctx);

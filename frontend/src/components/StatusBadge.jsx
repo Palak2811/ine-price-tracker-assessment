@@ -1,28 +1,58 @@
-/**
- * Scrape status badge.
- *
- * Status is never communicated by colour alone: each badge carries a glyph and
- * a word, so it survives colour-vision deficiency and greyscale printing.
- */
-export default function StatusBadge({ status, compact = false }) {
-  const map = {
-    success: { cls: 'badge-good', icon: '✓', label: 'Success' },
-    retried: { cls: 'badge-warning', icon: '↻', label: 'Retried' },
-    failed: { cls: 'badge-critical', icon: '✕', label: 'Failed' },
-  };
-  const s = map[status] ?? { cls: 'badge-neutral', icon: '•', label: 'Never run' };
+const STATUS = {
+  success: { cls: 'status-ok', label: 'Success' },
+  retried: { cls: 'status-retried', label: 'Retried' },
+  failed: { cls: 'status-failed', label: 'Failed' },
+};
+
+export default function StatusBadge({ status }) {
+  const s = STATUS[status] ?? { cls: 'status-none', label: 'Not run' };
   return (
-    <span className={`badge ${s.cls}`} title={`Latest scrape: ${s.label}`}>
-      <span aria-hidden="true">{s.icon}</span>{compact ? null : s.label}
+    <span className={`status ${s.cls}`}>
+      <span className="dot" aria-hidden="true" />
+      {s.label}
+    </span>
+  );
+}
+
+const TRIGGERS = {
+  cron: { label: 'Scheduled', title: 'Triggered by the external cron service' },
+  manual: { label: 'Manual', title: 'Triggered from the dashboard' },
+  cli: { label: 'CLI', title: 'Triggered from the command line' },
+};
+
+export function TriggerLabel({ trigger }) {
+  const t = TRIGGERS[trigger];
+  if (!t) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+  return (
+    <span style={{ color: 'var(--text-secondary)', fontSize: 13 }} title={t.title}>
+      {t.label}
     </span>
   );
 }
 
 export function StockBadge({ inStock, qty }) {
   if (inStock === null || inStock === undefined) {
-    return <span className="badge badge-neutral"><span aria-hidden="true">•</span>Unknown</span>;
+    return (
+      <span className="stock stock-unknown">
+        <span className="bar" aria-hidden="true" />
+        Unknown
+      </span>
+    );
   }
-  return inStock
-    ? <span className="badge badge-good"><span aria-hidden="true">✓</span>In stock{qty != null ? ` · ${qty}` : ''}</span>
-    : <span className="badge badge-critical"><span aria-hidden="true">✕</span>Out of stock</span>;
+
+  if (!inStock) {
+    return (
+      <span className="stock stock-out">
+        <span className="bar" aria-hidden="true" />
+        Out of stock
+      </span>
+    );
+  }
+
+  return (
+    <span className="stock stock-in">
+      <span className="bar" aria-hidden="true" />
+      In stock{qty != null ? ` · ${qty}` : ''}
+    </span>
+  );
 }

@@ -1,15 +1,3 @@
-/**
- * Orchestrates scraping and persistence.
- *
- * This is where the assignment's core rule is enforced:
- *
- *   - EVERY attempt writes a scrape_logs row, success or failure.
- *   - ONLY a validated success writes a price_history row.
- *   - A failure NEVER overwrites last_price / last_in_stock on tracked_products.
- *
- * Those three together are what make the history and the log honest.
- */
-
 import {
   insertScrapeLog, insertPriceHistory, updateTrackedProduct,
   createScrapeRun, completeScrapeRun, findRunningScrapeRun,
@@ -21,12 +9,6 @@ import { cleanErrorMessage } from '../utils/retry.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
 
-/**
- * Scrape one tracked product and persist everything about it.
- *
- * Returns a summary; it does not throw for scrape failures, because one
- * unreachable product must not abort a run covering several others.
- */
 export async function scrapeAndPersist({ browser, tracked, runId = null }) {
   const log = logger.child({ trackedProductId: tracked.id, productId: tracked.product_id });
   const attemptRows = [];
@@ -35,7 +17,6 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
     browser,
     productId: tracked.product_id,
     log,
-    // Called once per attempt, before we know whether later attempts succeed.
     onAttempt: async ({ attempt, status, data, error, durationMs, startedAt, completedAt }) => {
       try {
         await insertScrapeLog({
@@ -44,8 +25,6 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
           attempt,
           status,
           error_code: error?.code ?? null,
-          // Cleaned: a raw Playwright timeout message is thousands of chars of
-          // ANSI-escaped call log, which renders as noise in the UI.
           error_message: cleanErrorMessage(error?.message),
           http_status: error?.httpStatus ?? data?.httpStatus ?? null,
           duration_ms: durationMs,
@@ -59,8 +38,6 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
         });
         attemptRows.push({ attempt, status });
       } catch (err) {
-        // Losing a log row must not fail the scrape itself, but it is serious
-        // enough to shout about -- the log is a deliverable.
         log.error({ err: err.message, attempt }, 'failed to write scrape log row');
       }
     },
@@ -68,11 +45,7 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
 
   const nowIso = new Date().toISOString();
 
-  // ---- failure path --------------------------------------------------------
   if (!result.ok) {
-    // Deliberately does NOT touch last_price / last_in_stock / last_success_at.
-    // The dashboard keeps showing the last known good price alongside the
-    // failure, which is exactly what the assignment asks for.
     await updateTrackedProduct(tracked.id, {
       last_attempt_at: nowIso,
       last_status: 'failed',
@@ -96,11 +69,8 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
     };
   }
 
-  // ---- success path --------------------------------------------------------
   const { price, currency, mrp, inStock, stockQty, structureWarning } = result.data;
 
-  // Compare against the previous good value BEFORE we overwrite it, so alerts
-  // reflect a real transition.
   const previous = {
     price: tracked.last_price !== null && tracked.last_price !== undefined
       ? Number(tracked.last_price) : null,
@@ -124,7 +94,7 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
     last_stock_qty: stockQty,
     last_success_at: nowIso,
     last_attempt_at: nowIso,
-    last_status: result.status, // 'success' or 'retried'
+    last_status: result.status, 
     last_error: null,
     consecutive_failures: 0,
   });
@@ -153,7 +123,6 @@ export async function scrapeAndPersist({ browser, tracked, runId = null }) {
   };
 }
 
-/** Bonus: price-drop and back-in-stock alerts. */
 async function raiseAlerts({ tracked, previous, current, log }) {
   const events = [];
 
@@ -195,13 +164,6 @@ async function raiseAlerts({ tracked, previous, current, log }) {
   }
 }
 
-/**
- * Run a batch of products with bounded concurrency.
- *
- * Each product drives a real browser context, so concurrency is deliberately
- * small (default 2). Launching one per product would exhaust Render's free-tier
- * memory long before it got faster.
- */
 async function runWithConcurrency(items, limit, worker) {
   const results = [];
   let cursor = 0;
@@ -217,12 +179,6 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-/**
- * Scrape a set of tracked products as one recorded run.
- *
- * `trigger` is 'cron', 'manual' or 'cli'. Scheduled runs skip products that are
- * not yet due; manual runs scrape whatever they are given.
- */
 export async function runScrapeBatch({
   trigger = 'cron',
   trackedProducts = null,
@@ -233,8 +189,6 @@ export async function runScrapeBatch({
 } = {}) {
   const log = logger.child({ trigger });
 
-  // Overlap guard: a second cron firing while the first is still working would
-  // double-scrape every product and race on the tracked_products update.
   if (!allowConcurrentRun) {
     const inFlight = await findRunningScrapeRun();
     if (inFlight) {
@@ -272,10 +226,9 @@ export async function runScrapeBatch({
 
     results = await runWithConcurrency(
       targets,
-      headed ? 1 : config.scrapeConcurrency, // headed runs stay sequential so they are watchable
+      headed ? 1 : config.scrapeConcurrency, 
       (tracked) => scrapeAndPersist({ browser, tracked, runId: run.id })
         .catch((err) => {
-          // A persistence error is ours, not the store's. Record it and carry on.
           log.error({ err: err.message, trackedProductId: tracked.id }, 'scrapeAndPersist threw');
           return {
             trackedProductId: tracked.id,
@@ -286,8 +239,6 @@ export async function runScrapeBatch({
         })
     );
   } finally {
-    // Always close the browser: a leaked Chromium on Render's free tier will
-    // eat the memory limit and take the next run down with it.
     await closeSharedBrowser();
   }
 
@@ -307,7 +258,6 @@ export async function runScrapeBatch({
   return { runId: run.id, total: results.length, ok, failed, durationMs, results };
 }
 
-/** Manual single-product scrape, used by the UI's "Scrape now" button. */
 export async function scrapeSingleProduct(trackedProductId, { trigger = 'manual' } = {}) {
   const tracked = await getTrackedProduct(trackedProductId);
   if (!tracked) return null;
@@ -316,8 +266,6 @@ export async function scrapeSingleProduct(trackedProductId, { trigger = 'manual'
     trigger,
     trackedProducts: [tracked],
     respectSchedule: false,
-    // A manual scrape is explicitly user-requested, so it is allowed to run
-    // even if a scheduled run is in flight.
     allowConcurrentRun: true,
   });
 }

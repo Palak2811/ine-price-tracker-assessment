@@ -1,5 +1,3 @@
-/** Centralised error handling + 404 fallback. */
-
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
@@ -10,8 +8,6 @@ export function notFoundHandler(req, res) {
   });
 }
 
-// Express identifies error middleware by arity, so `next` must stay.
-// eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, next) {
   if (err instanceof ApiError) {
     logger.warn(
@@ -23,7 +19,6 @@ export function errorHandler(err, req, res, next) {
     });
   }
 
-  // Unexpected: log everything, tell the client nothing specific.
   logger.error(
     { path: req.path, method: req.method, stack: err.stack },
     `unhandled error: ${err.message}`
@@ -33,13 +28,11 @@ export function errorHandler(err, req, res, next) {
     error: {
       code: 'internal_error',
       message: 'An unexpected error occurred',
-      // Only in development, and never the stack.
       ...(config.isProduction ? {} : { debug: err.message }),
     },
   });
 }
 
-/** Wraps an async route so rejected promises reach the error handler. */
 export function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }

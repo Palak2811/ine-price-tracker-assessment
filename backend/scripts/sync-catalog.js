@@ -1,4 +1,3 @@
-/** Mirror the store's catalogue into Supabase.  npm run sync:catalog */
 import { syncCatalog } from '../src/services/catalogService.js';
 
 const r = await syncCatalog();

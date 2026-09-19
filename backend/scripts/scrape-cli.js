@@ -1,15 +1,3 @@
-/**
- * Scraper CLI -- the observable (headed) run required by the assignment.
- *
- *   npm run scrape                 # headless, all due products
- *   npm run scrape:headed          # visible browser, slowed down, sequential
- *   node scripts/scrape-cli.js --headed --all --slow-mo=500
- *   node scripts/scrape-cli.js --product=<tracked-uuid>
- *
- * Headed mode is a DEVELOPMENT/DEMO affordance only. Production scraping (the
- * cron endpoint) always runs headless -- there is no display on Render.
- */
-
 import { runScrapeBatch, scrapeSingleProduct } from '../src/services/scrapeService.js';
 import { listTrackedProducts } from '../src/repositories/trackingRepository.js';
 
@@ -23,7 +11,6 @@ const val = (name, fallback) => {
 const headed = has('--headed');
 const slowMo = Number.parseInt(val('slow-mo', headed ? '300' : '0'), 10) || 0;
 const productId = val('product', null);
-// --all ignores each product's schedule, which is what you want for a demo.
 const respectSchedule = !has('--all');
 
 console.log(

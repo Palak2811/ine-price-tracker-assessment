@@ -1,11 +1,3 @@
-/**
- * Tracked products, price history, scrape logs, runs and alerts.
- *
- * The write paths here enforce the assignment's central rule: a failed scrape
- * must never produce a price_history row and must never overwrite the last
- * known good price on tracked_products.
- */
-
 import { supabase, unwrap } from './supabaseClient.js';
 
 const TRACKED_FIELDS = `
@@ -14,10 +6,6 @@ const TRACKED_FIELDS = `
   last_stock_qty, last_success_at, last_attempt_at, last_status, last_error,
   consecutive_failures, created_at, updated_at
 `;
-
-// ---------------------------------------------------------------------------
-// tracked_products
-// ---------------------------------------------------------------------------
 
 export async function listTrackedProducts({ includeInactive = false } = {}) {
   let q = supabase.from('tracked_products').select(TRACKED_FIELDS);
@@ -58,13 +46,6 @@ export async function deleteTrackedProduct(id) {
   return unwrap(result, 'deleteTrackedProduct').length > 0;
 }
 
-/**
- * Products that are due for a scheduled scrape.
- *
- * Honouring each product's own interval (default 120 minutes) means a cron that
- * fires slightly early, or fires twice because the service retried the webhook,
- * does not produce duplicate history rows.
- */
 export async function listProductsDueForScrape({ now = new Date() } = {}) {
   const active = await listTrackedProducts();
   return active.filter((p) => {
@@ -73,10 +54,6 @@ export async function listProductsDueForScrape({ now = new Date() } = {}) {
     return elapsedMin >= (p.scrape_interval_minutes ?? 120);
   });
 }
-
-// ---------------------------------------------------------------------------
-// price_history -- successes only
-// ---------------------------------------------------------------------------
 
 export async function insertPriceHistory(row) {
   return unwrap(
@@ -93,7 +70,6 @@ export async function getPriceHistory(trackedProductId, { limit = 500, since = n
 
   if (since) q = q.gte('scraped_at', since);
 
-  // Newest first for the table; the chart reverses it.
   return unwrap(
     await q.order('scraped_at', { ascending: false }).limit(Math.min(limit, 2000)),
     'getPriceHistory'
@@ -113,10 +89,6 @@ export async function getLatestPricePoint(trackedProductId) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// scrape_logs -- every attempt, including failures
-// ---------------------------------------------------------------------------
-
 export async function insertScrapeLog(row) {
   return unwrap(
     await supabase.from('scrape_logs').insert(row).select('id').single(),
@@ -130,7 +102,8 @@ export async function getScrapeLogs(trackedProductId, { limit = 100, status = nu
     .select(`
       id, run_id, attempt, status, error_code, error_message, http_status,
       duration_ms, scraped_price, scraped_in_stock, scraped_stock_qty,
-      structure_warning, layout_revision, started_at, completed_at
+      structure_warning, layout_revision, started_at, completed_at,
+      scrape_runs ( trigger )
     `)
     .eq('tracked_product_id', trackedProductId);
 
@@ -141,10 +114,6 @@ export async function getScrapeLogs(trackedProductId, { limit = 100, status = nu
     'getScrapeLogs'
   );
 }
-
-// ---------------------------------------------------------------------------
-// scrape_runs
-// ---------------------------------------------------------------------------
 
 export async function createScrapeRun(trigger) {
   return unwrap(
@@ -176,13 +145,6 @@ export async function listScrapeRuns({ limit = 20 } = {}) {
   );
 }
 
-/**
- * Is a run already in flight?
- *
- * Guards against a duplicate cron invocation or a manual scrape overlapping the
- * scheduled one. Anything older than the stale window is treated as a crashed
- * run rather than blocking scrapes forever.
- */
 export async function findRunningScrapeRun({ staleAfterMinutes = 20 } = {}) {
   const cutoff = new Date(Date.now() - staleAfterMinutes * 60000).toISOString();
   const rows = unwrap(
@@ -197,10 +159,6 @@ export async function findRunningScrapeRun({ staleAfterMinutes = 20 } = {}) {
   );
   return rows[0] ?? null;
 }
-
-// ---------------------------------------------------------------------------
-// alerts (bonus)
-// ---------------------------------------------------------------------------
 
 export async function insertAlert(row) {
   return unwrap(await supabase.from('alerts').insert(row).select('id').single(), 'insertAlert');

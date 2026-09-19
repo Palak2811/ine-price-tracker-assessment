@@ -1,12 +1,10 @@
-/** Loading / error / empty states, shared across pages. */
-
 export function Loading({ rows = 3, label = 'Loading…' }) {
   return (
     <div aria-live="polite" aria-busy="true">
-      <span className="muted" style={{ fontSize: '.85rem' }}>{label}</span>
-      <div className="stack" style={{ marginTop: 10 }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 10px' }}>{label}</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {Array.from({ length: rows }, (_, i) => (
-          <div key={i} className="skeleton" style={{ height: 72 }} />
+          <div key={i} className="skeleton" style={{ height: 46 }} />
         ))}
       </div>
     </div>
@@ -14,15 +12,17 @@ export function Loading({ rows = 3, label = 'Loading…' }) {
 }
 
 export function ErrorState({ error, onRetry }) {
+  const isNetwork = error?.code === 'network_error';
+
   return (
-    <div className="alert alert-error" role="alert">
-      <span aria-hidden="true">✕</span>
+    <div className="note note-fail" role="alert">
+      <span className="mark" aria-hidden="true">!</span>
       <div style={{ flex: 1 }}>
-        <strong>Something went wrong.</strong>{' '}
+        <strong>{isNetwork ? 'Cannot reach the backend.' : 'Something went wrong.'}</strong>{' '}
         {error?.message ?? 'Unknown error'}
         {onRetry && (
-          <div style={{ marginTop: 10 }}>
-            <button className="btn btn-sm" onClick={onRetry}>Try again</button>
+          <div style={{ marginTop: 9 }}>
+            <button className="btn btn-xs" onClick={onRetry}>Try again</button>
           </div>
         )}
       </div>

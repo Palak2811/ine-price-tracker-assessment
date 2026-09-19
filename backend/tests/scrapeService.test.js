@@ -1,20 +1,5 @@
-/**
- * Tests for the persistence rules that make the history and log honest.
- *
- * These are the assignment's central guarantees, so they are asserted directly
- * rather than inferred from a happy-path run:
- *
- *   1. every attempt writes a scrape_logs row, including failures
- *   2. only a validated success writes a price_history row
- *   3. a failure never overwrites the last known good price
- *
- * The scraper itself is mocked: the point here is the persistence contract, not
- * the browser work, which is covered by the live probe script.
- */
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Env must be satisfied before the modules under test import config.
 process.env.SUPABASE_URL ??= 'https://example.supabase.co';
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'test-key';
 process.env.CRON_SECRET ??= 'test-secret-value-at-least-24-chars';
@@ -41,7 +26,6 @@ vi.mock('../src/repositories/trackingRepository.js', () => ({
 
 const { scrapeAndPersist } = await import('../src/services/scrapeService.js');
 
-/** A tracked product that already has a good price recorded. */
 const trackedWithGoodPrice = () => ({
   id: 'tp-1',
   product_id: 325,
@@ -111,11 +95,9 @@ describe('successful scrape', () => {
     const result = await scrapeAndPersist({ browser: {}, tracked: trackedWithGoodPrice() });
 
     expect(result.status).toBe('retried');
-    // The failed attempt is preserved, not swallowed by the eventual success.
     expect(inserted.logs).toHaveLength(2);
     expect(inserted.logs[0]).toMatchObject({ status: 'failed', error_code: 'price_resolve_timeout' });
     expect(inserted.logs[1]).toMatchObject({ status: 'success' });
-    // ...but only one history row, because there was only one real observation.
     expect(inserted.history).toHaveLength(1);
   });
 });
@@ -147,7 +129,6 @@ describe('failed scrape', () => {
     expect(inserted.logs).toHaveLength(3);
     expect(inserted.logs.every((l) => l.status === 'failed')).toBe(true);
     expect(inserted.logs.every((l) => l.error_code === 'validation_failed')).toBe(true);
-    // A failed attempt must never carry a price into the log either.
     expect(inserted.logs.every((l) => l.scraped_price === null)).toBe(true);
   });
 
@@ -155,7 +136,6 @@ describe('failed scrape', () => {
     await scrapeAndPersist({ browser: {}, tracked: trackedWithGoodPrice() });
 
     const patch = updates.at(-1).patch;
-    // The whole point: these keys must be absent from the update entirely.
     expect(patch).not.toHaveProperty('last_price');
     expect(patch).not.toHaveProperty('last_in_stock');
     expect(patch).not.toHaveProperty('last_success_at');
