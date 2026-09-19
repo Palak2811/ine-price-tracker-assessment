@@ -19,7 +19,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      # Browsers are not needed for unit tests, so skip the postinstall download.
       - run: npm ci --ignore-scripts  # browsers not needed for unit tests
       - run: npm test
         env:

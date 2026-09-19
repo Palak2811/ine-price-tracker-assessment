@@ -1,5 +1,3 @@
-# Render blueprint for the backend.
-# Secrets are marked sync:false so they are entered in the dashboard, never here.
 services:
   - type: web
     name: ine-price-tracker-api
@@ -7,10 +5,6 @@ services:
     plan: free
     region: singapore
     rootDir: backend
-    # No `--with-deps`: that flag shells out to `sudo apt-get`, and Render's build
-    # sandbox cannot escalate to root, so it fails the build. The base image
-    # already carries the shared libraries Chromium needs.
-    # `npm ci` alone is enough -- the postinstall hook downloads Chromium.
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
@@ -23,7 +17,6 @@ services:
         value: info
       - key: SCRAPE_CONCURRENCY
         value: 2
-      # Playwright caches browsers here so they survive between deploys.
       - key: PLAYWRIGHT_BROWSERS_PATH
         value: /opt/render/project/.cache/ms-playwright
       - key: SUPABASE_URL

@@ -1,52 +1,42 @@
-# Secrets -- never commit real credentials
 .env
 .env.*
 !.env.example
 
-# Dependencies
 node_modules/
 .pnp
 .pnp.js
 
-# Build output
 dist/
 build/
 .vite/
 frontend/dist/
 
-# Playwright
 test-results/
 playwright-report/
 blob-report/
 .playwright/
 playwright/.cache/
 
-# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 logs/
 
-# Editors / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
 *.swp
 
-# Scratch / investigation work (not part of the deliverable)
 investigate/
 scratch/
 tmp/
 
-# Coverage
 coverage/
 .nyc_output/
 
-# Local tooling / editor config
 .claude/
 
-# Vercel / Render
 .vercel
 .render
