@@ -79,7 +79,7 @@ docs/              DESIGN.md
 | Layer | Choice |
 |---|---|
 | Frontend | React 18 + Vite + React Router + Recharts → **Vercel** |
-| Backend | Node 20 + Express → **Render** |
+| Backend | Node 22 + Express → **Render** |
 | Database | **Supabase** PostgreSQL |
 | Scraping | Playwright (Chromium) for price/stock; plain `fetch` for the catalogue |
 | Scheduling | **cron-job.org**, every 2 hours |
@@ -113,7 +113,7 @@ every check.
 
 ## Local setup
 
-**Prerequisites:** Node 20+, npm, and a free Supabase project.
+**Prerequisites:** Node 22+, npm, and a free Supabase project. (Node 22 is required — `@supabase/supabase-js` relies on native WebSocket.)
 
 ```bash
 git clone <your-repo-url>
