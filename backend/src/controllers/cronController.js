@@ -8,34 +8,41 @@ export async function scrape(req, res) {
   const startedAt = Date.now();
   logger.info({ ip: req.ip }, 'cron scrape triggered');
 
-  const summary = await runScrapeBatch({ trigger: 'cron', respectSchedule: true });
+  res.status(202).json({ ok: true, accepted: true });
 
-  if (summary.skipped) {
-    return res.json({
-      ok: true,
-      skipped: true,
-      reason: summary.reason,
-      runningSince: summary.startedAt,
-    });
+  try {
+    const summary = await runScrapeBatch({ trigger: 'cron', respectSchedule: true });
+
+    if (summary.skipped) {
+      logger.info(
+        { reason: summary.reason, runningSince: summary.startedAt },
+        'cron scrape skipped'
+      );
+      return;
+    }
+
+    logger.info(
+      {
+        runId: summary.runId,
+        total: summary.total,
+        succeeded: summary.ok,
+        failed: summary.failed,
+        durationMs: Date.now() - startedAt,
+        structureChange: getLastStructureChange(),
+        results: (summary.results ?? []).map((r) => ({
+          product: r.productName,
+          status: r.status,
+          attempts: r.attempts,
+          price: r.price ?? null,
+          inStock: r.inStock ?? null,
+          error: r.errorCode ?? null,
+        })),
+      },
+      'cron scrape finished'
+    );
+  } catch (err) {
+    logger.error({ err: err.message, stack: err.stack }, 'cron scrape threw');
   }
-
-  res.json({
-    ok: true,
-    runId: summary.runId,
-    total: summary.total,
-    succeeded: summary.ok,
-    failed: summary.failed,
-    durationMs: Date.now() - startedAt,
-    structureChange: getLastStructureChange(),
-    results: (summary.results ?? []).map((r) => ({
-      product: r.productName,
-      status: r.status,
-      attempts: r.attempts,
-      price: r.price ?? null,
-      inStock: r.inStock ?? null,
-      error: r.errorCode ?? null,
-    })),
-  });
 }
 
 export async function syncCatalogue(req, res) {
