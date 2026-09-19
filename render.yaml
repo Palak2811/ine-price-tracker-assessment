@@ -7,7 +7,11 @@ services:
     plan: free
     region: singapore
     rootDir: backend
-    buildCommand: npm ci && npx playwright install --with-deps chromium
+    # No `--with-deps`: that flag shells out to `sudo apt-get`, and Render's build
+    # sandbox cannot escalate to root, so it fails the build. The base image
+    # already carries the shared libraries Chromium needs.
+    # `npm ci` alone is enough -- the postinstall hook downloads Chromium.
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:

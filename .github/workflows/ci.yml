@@ -20,7 +20,7 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       # Browsers are not needed for unit tests, so skip the postinstall download.
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts  # browsers not needed for unit tests
       - run: npm test
         env:
           SUPABASE_URL: https://example.supabase.co

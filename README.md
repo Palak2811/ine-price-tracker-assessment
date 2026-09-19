@@ -124,8 +124,8 @@ cd college-placement-project
 cd backend && npm install
 ```
 
-`npm install` runs `playwright install --with-deps chromium` via postinstall
-(~150MB). If that download times out, rerun it on its own:
+`npm install` runs `playwright install chromium` via postinstall (~150MB). If
+that download times out, rerun it on its own:
 
 ```bash
 cd backend && npx playwright install chromium
@@ -381,7 +381,7 @@ Follow [Supabase setup](#supabase-setup). Run `npm run sync:catalog` once.
 
 - **New → Web Service**, connect the repo.
 - Root directory `backend`; runtime Node.
-- Build: `npm ci && npx playwright install --with-deps chromium`
+- Build: `npm ci` (the postinstall hook downloads Chromium)
 - Start: `npm start`
 - Health check path: `/health`
 - Environment: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
