@@ -11,14 +11,54 @@ export function parsePrice(raw) {
 
   if (/%/.test(text)) return null;
 
-  const match = text.match(/\d[\d,  ]*(?:\.\d+)?/);
+  const match = text.match(/\d[\d.,   ]*\d|\d/);
   if (!match) return null;
 
-  const rest = text.slice(match.index + match[0].length);
-  if (/^\.?\d/.test(rest)) return null;
+  const token = match[0].replace(/[   ]/g, '');
+  if (!/^[\d.,]+$/.test(token)) return null;
 
-  const normalised = match[0].replace(/[,  ]/g, '');
-  if (!normalised || !/^\d+(?:\.\d+)?$/.test(normalised)) return null;
+  // Digit grouping must actually look like grouping before we strip it.
+  // Western uses 3-digit groups (1,234,567); Indian uses 2-digit middles with a
+  // 3-digit tail (1,56,756). Anything else -- "1.2.3" -- is malformed, and
+  // joining it blindly would invent a number.
+  const groupingValid = (groups) => {
+    if (groups.length < 2) return true;
+    if (!/^\d{1,3}$/.test(groups[0])) return false;
+    if (!/^\d{3}$/.test(groups[groups.length - 1])) return false;
+    return groups.slice(1, -1).every((g) => /^\d{2,3}$/.test(g));
+  };
+
+  const lastDot = token.lastIndexOf('.');
+  const lastComma = token.lastIndexOf(',');
+  let normalised;
+
+  if (lastDot !== -1 && lastComma !== -1) {
+    const decimalSep = lastDot > lastComma ? '.' : ',';
+    const groupSep = decimalSep === '.' ? ',' : '.';
+    const parts = token.split(decimalSep);
+    if (parts.length !== 2) return null;
+    const groups = parts[0].split(groupSep);
+    if (groups.some((g) => !/^\d+$/.test(g)) || !groupingValid(groups)) return null;
+    const frac = parts[1];
+    if (!/^\d+$/.test(frac)) return null;
+    normalised = `${groups.join('')}.${frac}`;
+  } else if (lastDot !== -1 || lastComma !== -1) {
+    const sep = lastDot !== -1 ? '.' : ',';
+    const groups = token.split(sep);
+    if (groups.some((g) => !/^\d+$/.test(g))) return null;
+
+    const tail = groups[groups.length - 1];
+
+    if (groups.length === 2 && tail.length !== 3) {
+      normalised = `${groups[0]}.${tail}`;
+    } else {
+      if (!groupingValid(groups)) return null;
+      normalised = groups.join('');
+    }
+  } else {
+    if (!/^\d+$/.test(token)) return null;
+    normalised = token;
+  }
 
   const value = Number(normalised);
   if (!Number.isFinite(value)) return null;
@@ -36,8 +76,8 @@ export function parseStock(raw, badgeClassName = '') {
   const text = stripZeroWidth(raw).trim();
   const cls = String(badgeClassName || '');
 
-  const hasOutClass = /\bout-stock\b/.test(cls);
-  const hasInClass = /\bin-stock\b/.test(cls);
+  const hasOutClass = /\bout-stock\b|\bavail-no\b/.test(cls);
+  const hasInClass = /\bin-stock\b|\bavail-yes\b/.test(cls);
 
   if (!text) {
     return null;

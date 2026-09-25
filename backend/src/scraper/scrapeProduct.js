@@ -10,7 +10,7 @@ import { getLayout } from './layout.js';
 import { logger } from '../utils/logger.js';
 
 async function dismissConsentBanner(page, log, { attempts = 3 } = {}) {
-  const overlay = page.locator('.cookie-overlay');
+  const overlay = page.locator('.cookie-overlay, .consent-overlay');
   if ((await overlay.count()) === 0) return false;
 
   for (let i = 1; i <= attempts; i++) {
@@ -43,7 +43,7 @@ async function dismissConsentBanner(page, log, { attempts = 3 } = {}) {
 }
 
 async function armInteractionGate(page, log) {
-  const block = page.locator('.price-block');
+  const block = page.locator('.offer-panel, .price-block');
   await block.waitFor({ state: 'visible', timeout: TIMEOUTS.priceBlockMs });
 
   const box = await block.boundingBox();
@@ -113,7 +113,7 @@ async function clickRevealAndWait(page, log) {
         if (clicks > 1) log.debug({ clicks }, 're-clicking reveal; previous click did not register');
         await dismissConsentBanner(page, log);
         try {
-          await page.locator('.price-block button').first().click({ timeout: 8_000 });
+          await page.locator('.offer-panel button, .price-block button').first().click({ timeout: 8_000 });
         } catch (err) {
           lastClickError = err;
           log.debug({ clicks, err: err.message.slice(0, 120) }, 'reveal click was blocked');
@@ -174,7 +174,28 @@ export async function scrapeProductOnce({ browser, productId, layout, log }) {
 
     await clickRevealAndWait(page, log);
 
-    const raw = await page.evaluate(extractPriceBlock, layout.classes);
+    let raw = await page.evaluate(extractPriceBlock, layout.classes);
+
+    // The store shows a provisional price at reduced opacity with a
+    // "Refreshing prices" note before replacing it with the final figure.
+    // Reading during that window stores a number that is about to change, so
+    // poll until it settles rather than trusting the first value seen.
+    if (raw.state === 'resolved' && raw.settling) {
+      const settleDeadline = Date.now() + TIMEOUTS.settleMs;
+      while (Date.now() < settleDeadline) {
+        await page.waitForTimeout(500);
+        const next = await page.evaluate(extractPriceBlock, layout.classes);
+        if (next.state !== 'resolved') { raw = next; break; }
+        raw = next;
+        if (!next.settling) break;
+      }
+      if (raw.state === 'resolved' && raw.settling) {
+        log.warn(
+          { note: raw.settlingNote, opacity: raw.priceOpacity },
+          'price still settling when the wait expired; using the value shown',
+        );
+      }
+    }
 
     if (raw.state === 'error') {
       throw new ScrapeError('store_reported_error', raw.message || 'store reported an error', {

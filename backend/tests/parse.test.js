@@ -170,3 +170,37 @@ describe('cleanErrorMessage', () => {
     expect(cleanErrorMessage('')).toBeNull();
   });
 });
+
+describe('parsePrice across the store\'s rotating number formats', () => {
+  it('parses European grouping where dots are thousands and comma is the decimal', () => {
+    // The rewritten store renders some prices this way. Read as Indian/US
+    // grouping, "₹1.11.241,00" would come out as 1.11 - a silently wrong price.
+    expect(parsePrice('₹1.11.241,00')).toBe(111241);
+    expect(parsePrice('₹1.083,00')).toBe(1083);
+    expect(parsePrice('₹1.234.567,89')).toBeCloseTo(1234567.89, 2);
+  });
+
+  it('still parses Indian grouping', () => {
+    expect(parsePrice('₹1,56,756')).toBe(156756);
+    expect(parsePrice('₹44,286')).toBe(44286);
+  });
+
+  it('rejects malformed grouping instead of inventing a number', () => {
+    expect(parsePrice('₹1.2.3')).toBeNull();
+    expect(parsePrice('₹12,34,5')).toBeNull();
+  });
+});
+
+describe('parseStock with the v2 availability pill', () => {
+  it.each([
+    ['Stock: 23 remaining', 23],
+    ['Available (82)', 82],
+    ['Ready to ship · 24 available', 24],
+  ])('parses %s', (text, qty) => {
+    expect(parseStock(text, 'avail-pill avail-yes')).toEqual({ inStock: true, quantity: qty });
+  });
+
+  it('reads the v2 sold-out pill', () => {
+    expect(parseStock('Sold out', 'avail-pill avail-no')).toEqual({ inStock: false, quantity: 0 });
+  });
+});

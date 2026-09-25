@@ -41,14 +41,14 @@ export async function syncCatalog({
   const startedAt = Date.now();
 
   const first = await fetchCatalogPage(1, pageSize);
-  const expected = first.total ?? 0;
-  const pages = first.pages ?? 1;
+  const expected = first.count ?? first.total ?? 0;
+  const pages = first.totalPages ?? first.pages ?? 1;
 
   const seen = new Map();
   const absorb = (items) => {
     for (const item of items) if (!seen.has(item.id)) seen.set(item.id, toRow(item));
   };
-  absorb(first.items);
+  absorb(first.results ?? first.items ?? []);
 
   let requests = 1;
   let barrenStreak = 0;
@@ -57,7 +57,8 @@ export async function syncCatalog({
     const before = seen.size;
     const page = (requests % pages) + 1;
 
-    absorb((await fetchCatalogPage(page, pageSize)).items);
+    const pageData = await fetchCatalogPage(page, pageSize);
+    absorb(pageData.results ?? pageData.items ?? []);
     requests++;
 
     barrenStreak = seen.size === before ? barrenStreak + 1 : 0;

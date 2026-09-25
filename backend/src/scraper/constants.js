@@ -1,9 +1,9 @@
 export const STORE_ORIGIN = 'https://demo.inelabteamdev.com';
 
 export const API = {
-  catalog: (page, pageSize) => `${STORE_ORIGIN}/api/catalog?page=${page}&pageSize=${pageSize}`,
-  layout: () => `${STORE_ORIGIN}/api/layout`,
-  product: (id) => `${STORE_ORIGIN}/api/product/${id}`,
+  catalog: (page, pageSize) => `${STORE_ORIGIN}/api/v2/listings?page=${page}&limit=${pageSize}`,
+  layout: () => `${STORE_ORIGIN}/api/v2/ui/manifest`,
+  product: (id) => `${STORE_ORIGIN}/api/v2/items/${id}`,
 };
 
 export const CATALOG_MAX_PAGE_SIZE = 60;
@@ -20,6 +20,7 @@ export const TIMEOUTS = {
   priceBlockMs: envInt('SCRAPE_BLOCK_TIMEOUT_MS', 20_000),
   priceResolveMs: envInt('SCRAPE_RESOLVE_TIMEOUT_MS', 60_000),
   gateMs: envInt('SCRAPE_GATE_TIMEOUT_MS', 15_000),
+  settleMs: envInt('SCRAPE_SETTLE_TIMEOUT_MS', 20_000),
 };
 
 export const RETRY = {
@@ -43,7 +44,7 @@ export function buildProductUrl(productId) {
   if (!Number.isInteger(productId) || productId <= 0) {
     throw new Error(`invalid product id: ${productId}`);
   }
-  return `${STORE_ORIGIN}/product/${productId}`;
+  return `${STORE_ORIGIN}/item/${productId}`;
 }
 
 export function assertAllowedUrl(url) {
