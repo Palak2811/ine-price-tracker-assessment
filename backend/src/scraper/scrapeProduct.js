@@ -42,6 +42,26 @@ async function dismissConsentBanner(page, log, { attempts = 3 } = {}) {
   return false;
 }
 
+// A short sweep across the price area. The store's gate watches for recent
+// pointer activity, so it lapses and re-disables the button if the mouse goes
+// still -- which is what made re-clicks time out with the button disabled.
+async function sweepPriceArea(page, passes = 1) {
+  const block = page.locator('.offer-panel, .price-block');
+  const box = await block.boundingBox().catch(() => null);
+  if (!box) return false;
+
+  for (let p = 0; p < passes; p++) {
+    for (let i = 0; i < GATE.moves; i++) {
+      const t = i / GATE.moves;
+      const x = box.x + 15 + t * Math.max(1, box.width - 30);
+      const y = box.y + box.height / 2 + Math.sin(t * Math.PI * 3) * (box.height / 4);
+      await page.mouse.move(x, y, { steps: 3 });
+      await page.waitForTimeout(GATE.moveDelayMs);
+    }
+  }
+  return true;
+}
+
 async function armInteractionGate(page, log) {
   const block = page.locator('.offer-panel, .price-block');
   await block.waitFor({ state: 'visible', timeout: TIMEOUTS.priceBlockMs });
@@ -112,6 +132,10 @@ async function clickRevealAndWait(page, log) {
         clicks++;
         if (clicks > 1) log.debug({ clicks }, 're-clicking reveal; previous click did not register');
         await dismissConsentBanner(page, log);
+        // Re-arm before every retry: by now the pointer has been still for
+        // seconds and the gate has usually re-disabled the button, which makes
+        // the click time out waiting for an actionable element.
+        if (clicks > 1) await sweepPriceArea(page, 1);
         try {
           await page.locator('.offer-panel button, .price-block button').first().click({ timeout: 8_000 });
         } catch (err) {
